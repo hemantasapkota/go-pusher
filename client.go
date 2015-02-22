@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type client struct {
+type Client struct {
 	ws                 *websocket.Conn
 	Events             chan *Event
 	Stop               chan bool
@@ -18,7 +18,7 @@ type client struct {
 }
 
 // heartbeat send a ping frame to server each - TODO reconnect on disconnect
-func (c *client) heartbeat() {
+func (c *Client) heartbeat() {
 	for {
 		websocket.Message.Send(c.ws, `{"event":"pusher:ping","data":"{}"}`)
 		time.Sleep(HEARTBEAT_RATE * time.Second)
@@ -26,7 +26,7 @@ func (c *client) heartbeat() {
 }
 
 // listen to Pusher server and process/dispatch recieved events
-func (c *client) listen() {
+func (c *Client) listen() {
 	for {
 		var event Event
 		err := websocket.JSON.Receive(c.ws, &event)
@@ -51,7 +51,7 @@ func (c *client) listen() {
 }
 
 // Subsribe to a channel
-func (c *client) Subscribe(channel string) (err error) {
+func (c *Client) Subscribe(channel string) (err error) {
 	// Already subscribed ?
 	if c.subscribedChannels.contains(channel) {
 		err = errors.New(fmt.Sprintf("Channel %s already subscribed", channel))
@@ -66,7 +66,7 @@ func (c *client) Subscribe(channel string) (err error) {
 }
 
 // Unsubscribe from a channel
-func (c *client) Unsubscribe(channel string) (err error) {
+func (c *Client) Unsubscribe(channel string) (err error) {
 	// subscribed ?
 	if !c.subscribedChannels.contains(channel) {
 		err = errors.New(fmt.Sprintf("Client isn't subscrived to %s", channel))
@@ -82,7 +82,7 @@ func (c *client) Unsubscribe(channel string) (err error) {
 }
 
 // Bind an event
-func (c *client) Bind(evt string) (dataChannel chan *Event, err error) {
+func (c *Client) Bind(evt string) (dataChannel chan *Event, err error) {
 	// Already binded
 	_, ok := c.binders[evt]
 	if ok {
@@ -96,12 +96,12 @@ func (c *client) Bind(evt string) (dataChannel chan *Event, err error) {
 }
 
 // Unbind a event
-func (c *client) Unbind(evt string) {
+func (c *Client) Unbind(evt string) {
 	delete(c.binders, evt)
 }
 
 // NewClient initialize & return a Pusher client
-func NewClient(appKey string) (*client, error) {
+func NewClient(appKey string) (*Client, error) {
 	origin := "http://localhost/"
 	url := "wss://ws.pusherapp.com:443/app/" + appKey + "?protocol=" + PROTOCOL_VERSION
 	ws, err := websocket.Dial(url, "", origin)
@@ -130,7 +130,7 @@ func NewClient(appKey string) (*client, error) {
 	case "pusher:connection_established":
 		sChannels := new(subscribedChannels)
 		sChannels.channels = make([]string, 0)
-		pClient := client{ws, make(chan *Event, EVENT_CHANNEL_BUFF_SIZE), make(chan bool), sChannels, make(map[string]chan *Event)}
+		pClient := Client{ws, make(chan *Event, EVENT_CHANNEL_BUFF_SIZE), make(chan bool), sChannels, make(map[string]chan *Event)}
 		go pClient.heartbeat()
 		go pClient.listen()
 		return &pClient, nil

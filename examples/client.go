@@ -5,7 +5,7 @@ package main
 // 		go run client.go
 
 import (
-	"github.com/toorop/go-pusher"
+	"github.com/hemantasapkota/go-pusher"
 	"log"
 )
 
