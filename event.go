@@ -1,5 +1,10 @@
 package pusher
 
+type ConnectionData struct {
+	SocketId        string `json:"socket_id"`
+	ActivityTimeout int    `'json:"activity_timeout"`
+}
+
 type Event struct {
 	Event string `json:"event"`
 	Data  string `json:"data"`

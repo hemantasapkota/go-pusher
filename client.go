@@ -2,9 +2,11 @@ package pusher
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/parnurzeal/gorequest"
 	"log"
 	"time"
 )
@@ -15,6 +17,10 @@ type Client struct {
 	Stop               chan bool
 	subscribedChannels *subscribedChannels
 	binders            map[string]chan *Event
+
+	PusherConn  *ConnectionData
+	AuthUrl     string
+	AuthHeaders map[string]string
 }
 
 // heartbeat send a ping frame to server each - TODO reconnect on disconnect
@@ -48,6 +54,58 @@ func (c *Client) listen() {
 			}
 		}
 	}
+}
+
+func (c *Client) authorize(channel string) (*string, error) {
+	req := gorequest.New()
+
+	req = req.Post(c.AuthUrl).TLSClientConfig(&tls.Config{MaxVersion: tls.VersionTLS11, InsecureSkipVerify: true})
+
+	//Set headers
+	for k, v := range c.AuthHeaders {
+		req = req.Set(k, v)
+	}
+
+	//Set post values
+	postVal := fmt.Sprintf("socket_id=%s&channel_name=%s", c.PusherConn.SocketId, channel)
+
+	_, body, errs := req.Send(postVal).End()
+
+	if errs != nil {
+		return nil, errs[0]
+	}
+
+	return &body, nil
+}
+
+func (c *Client) SubscribeWithAuthorization(channel string) (err error) {
+	if c.subscribedChannels.contains(channel) {
+		return errors.New(fmt.Sprintf("Channel %s already subscribed", channel))
+	}
+
+	data, err := c.authorize(channel)
+	if err != nil {
+		return err
+	}
+
+	//add channel info to the data
+	var tmpData map[string]interface{}
+	if err := json.Unmarshal([]byte(*data), &tmpData); err != nil {
+		return errors.New("Body Json Malformed")
+	}
+
+	//update channel name
+	tmpData["channel"] = channel
+
+	//marshall back
+	channelData, _ := json.Marshal(tmpData)
+	//subscription logic
+	eventData := fmt.Sprintf(`{"event":"pusher:subscribe","data":%s}`, channelData)
+	err = websocket.Message.Send(c.ws, eventData)
+	if err != nil {
+		return err
+	}
+	return c.subscribedChannels.add(channel)
 }
 
 // Subsribe to a channel
@@ -118,6 +176,13 @@ func NewClient(appKey string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var connData *ConnectionData
+	err = json.Unmarshal([]byte(event.Data), &connData)
+	if err != nil {
+		return nil, err
+	}
+
 	switch event.Event {
 	case "pusher:error":
 		var data eventError
@@ -128,9 +193,19 @@ func NewClient(appKey string) (*Client, error) {
 		err = errors.New(fmt.Sprintf("Pusher return error : code : %d, message %s", data.code, data.message))
 		return nil, err
 	case "pusher:connection_established":
+		log.Println("Pusher connection established.")
 		sChannels := new(subscribedChannels)
 		sChannels.channels = make([]string, 0)
-		pClient := Client{ws, make(chan *Event, EVENT_CHANNEL_BUFF_SIZE), make(chan bool), sChannels, make(map[string]chan *Event)}
+
+		pClient := Client{ws,
+			make(chan *Event, EVENT_CHANNEL_BUFF_SIZE),
+			make(chan bool),
+			sChannels,
+			make(map[string]chan *Event),
+			connData, "",
+			map[string]string{},
+		}
+
 		go pClient.heartbeat()
 		go pClient.listen()
 		return &pClient, nil
