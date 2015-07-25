@@ -57,7 +57,9 @@ func (c *Client) Subscribe(channel string) (err error) {
 		err = errors.New(fmt.Sprintf("Channel %s already subscribed", channel))
 		return
 	}
-	err = websocket.Message.Send(c.ws, fmt.Sprintf(`{"event":"pusher:subscribe","data":{"channel":"%s"}}`, channel))
+	err = websocket.Message.Send(c.ws,
+		fmt.Sprintf(`{"event":"pusher:subscribe","data":{"channel":"%s"}}`,
+			channel))
 	if err != nil {
 		return
 	}
