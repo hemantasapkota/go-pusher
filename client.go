@@ -40,13 +40,13 @@ func (c *Client) listen() {
 
 		var message string
 		websocket.Message.Receive(c.ws, &message)
-		log.Println(message)
+		Info.Println(message)
 
 		var event Event
 		err := json.Unmarshal([]byte(message), &event)
 		// err := websocket.JSON.Receive(c.ws, &event)
 		if err != nil {
-			log.Println("Listen error : ", err)
+			Info.Println("Listen error : ", err)
 		} else {
 			//log.Println(event)
 			switch event.Event {
@@ -54,7 +54,7 @@ func (c *Client) listen() {
 				websocket.Message.Send(c.ws, `{"event":"pusher:pong","data":"{}"}`)
 			case "pusher:pong":
 			case "pusher:error":
-				log.Println("Event error recieved: ", event.Data)
+				Info.Println("Event error recieved: ", event.Data)
 			default:
 				_, ok := c.binders[event.Event]
 				if ok {
@@ -79,6 +79,7 @@ func (c *Client) authorize(channel string) (*string, error) {
 	postVal := fmt.Sprintf("socket_id=%s&channel_name=%s", c.PusherConn.SocketId, channel)
 
 	Info.Println(fmt.Sprintf("Authorizing token: %s : %s", c.AuthUrl, postVal))
+
 	_, body, errs := req.Send(postVal).End()
 
 	if errs != nil {
@@ -174,7 +175,7 @@ func (c *Client) Unbind(evt string) {
 
 // NewClient initialize & return a Pusher client
 func NewClient(appKey string) (*Client, error) {
-	Info = log.New(os.Stdout, "PUSHER: ", log.Ltime|log.Lshortfile)
+	Info = log.New(os.Stdout, "PUSHER: ", log.Lshortfile)
 
 	origin := "http://localhost/"
 	url := "wss://ws.pusherapp.com:443/app/" + appKey + "?protocol=" + PROTOCOL_VERSION
