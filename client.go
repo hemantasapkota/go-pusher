@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"github.com/parnurzeal/gorequest"
 	"log"
+	"os"
 	"time"
 )
+
+var Info *log.Logger
 
 type Client struct {
 	ws                 *websocket.Conn
@@ -34,8 +37,14 @@ func (c *Client) heartbeat() {
 // listen to Pusher server and process/dispatch recieved events
 func (c *Client) listen() {
 	for {
+
+		var message string
+		websocket.Message.Receive(c.ws, &message)
+		log.Println(message)
+
 		var event Event
-		err := websocket.JSON.Receive(c.ws, &event)
+		err := json.Unmarshal([]byte(message), &event)
+		// err := websocket.JSON.Receive(c.ws, &event)
 		if err != nil {
 			log.Println("Listen error : ", err)
 		} else {
@@ -69,6 +78,7 @@ func (c *Client) authorize(channel string) (*string, error) {
 	//Set post values
 	postVal := fmt.Sprintf("socket_id=%s&channel_name=%s", c.PusherConn.SocketId, channel)
 
+	Info.Println(fmt.Sprintf("Authorizing token: %s : %s", c.AuthUrl, postVal))
 	_, body, errs := req.Send(postVal).End()
 
 	if errs != nil {
@@ -85,6 +95,7 @@ func (c *Client) SubscribeWithAuthorization(channel string) (err error) {
 
 	data, err := c.authorize(channel)
 	if err != nil {
+		Info.Println(err)
 		return err
 	}
 
@@ -101,7 +112,10 @@ func (c *Client) SubscribeWithAuthorization(channel string) (err error) {
 	channelData, _ := json.Marshal(tmpData)
 	//subscription logic
 	eventData := fmt.Sprintf(`{"event":"pusher:subscribe","data":%s}`, channelData)
+	Info.Println(eventData)
+
 	err = websocket.Message.Send(c.ws, eventData)
+
 	if err != nil {
 		return err
 	}
@@ -160,8 +174,12 @@ func (c *Client) Unbind(evt string) {
 
 // NewClient initialize & return a Pusher client
 func NewClient(appKey string) (*Client, error) {
+	Info = log.New(os.Stdout, "PUSHER: ", log.Ltime|log.Lshortfile)
+
 	origin := "http://localhost/"
 	url := "wss://ws.pusherapp.com:443/app/" + appKey + "?protocol=" + PROTOCOL_VERSION
+
+	Info.Println("Connecting: " + url)
 	ws, err := websocket.Dial(url, "", origin)
 	if err != nil {
 		return nil, err
