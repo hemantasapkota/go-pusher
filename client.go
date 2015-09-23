@@ -173,6 +173,11 @@ func (c *Client) Unbind(evt string) {
 	delete(c.binders, evt)
 }
 
+func (c *Client) Close() {
+	Info.Println("Closing")
+	c.ws.Close()
+}
+
 // NewClient initialize & return a Pusher client
 func NewClient(appKey string) (*Client, error) {
 	Info = log.New(os.Stdout, "PUSHER: ", log.Lshortfile)
